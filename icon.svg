@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#1e293b"/>
+  <rect x="80" y="160" width="352" height="240" rx="24" fill="#2563eb"/>
+  <rect x="80" y="200" width="352" height="60" fill="#1d4ed8"/>
+  <rect x="110" y="300" width="80" height="20" rx="6" fill="#93c5fd"/>
+  <rect x="210" y="300" width="80" height="20" rx="6" fill="#93c5fd"/>
+  <rect x="310" y="300" width="80" height="20" rx="6" fill="#93c5fd"/>
+  <circle cx="390" cy="140" r="50" fill="#16a34a"/>
+  <text x="390" y="155" text-anchor="middle" font-size="52" font-family="sans-serif" fill="white">€</text>
+</svg>
