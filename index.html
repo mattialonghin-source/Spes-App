@@ -139,6 +139,23 @@
     .cat-btn[data-c="HEALTH"].active { background: var(--health); box-shadow: 0 3px 8px rgba(225,29,72,.4); }
     .cat-btn[data-c="EXTRAS"].active { background: var(--extras); box-shadow: 0 3px 8px rgba(202,138,4,.4); }
 
+    /* ── SUBCATEGORY CHIPS (form) ── */
+    .subcat-section { overflow: hidden; transition: max-height .3s ease; max-height: 0; }
+    .subcat-section.open { max-height: 200px; }
+    .subcat-chips {
+      display: flex; flex-wrap: wrap; gap: 7px;
+      padding-bottom: 16px;
+    }
+    .sub-chip {
+      padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border);
+      background: #fff; cursor: pointer; font-size: 12px; font-weight: 600;
+      color: var(--muted); transition: all .2s; white-space: nowrap;
+    }
+    .sub-chip.active {
+      background: var(--cc, var(--primary));
+      border-color: transparent; color: #fff;
+    }
+
     /* ── INPUTS ── */
     .inp-wrap { margin-bottom: 13px; }
     .inp-wrap label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .5px; }
@@ -161,9 +178,7 @@
     .btn-inc { background: var(--income);  color: #fff; box-shadow: 0 4px 12px rgba(22,163,74,.3); }
 
     /* ── FILTER BAR ── */
-    .filters {
-      display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px;
-    }
+    .filters { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 14px; }
     .fsel {
       flex: 1; min-width: 120px; padding: 9px 10px;
       border: 1.5px solid var(--border); border-radius: 9px;
@@ -191,6 +206,15 @@
     .bdg-subj { background: #e0f2fe; color: #0369a1; }
     .bdg-inc  { background: #dcfce7; color: #15803d; }
     .bdg-cat  { color: #fff; }
+    .bdg-sub  {
+      color: #fff; opacity: .85; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 3px;
+    }
+    .bdg-sub-add {
+      border: 1.5px dashed; border-radius: 20px; font-size: 10px;
+      font-weight: 600; padding: 2px 7px; cursor: pointer;
+      background: none; transition: all .2s;
+    }
     .exp-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
     .exp-amt { font-size: 15px; font-weight: 800; }
     .exp-amt.income  { color: var(--income); }
@@ -258,6 +282,47 @@
     /* ── COLLAPSE SECTION ── */
     .collapsible { overflow: hidden; transition: max-height .3s ease; }
     .collapsible.hidden { max-height: 0 !important; }
+
+    /* ── SUBCATEGORY MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,.45);
+      display: flex; align-items: flex-end;
+      opacity: 0; pointer-events: none; transition: opacity .25s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal-sheet {
+      width: 100%; max-width: 560px; margin: 0 auto;
+      background: #fff; border-radius: 22px 22px 0 0;
+      padding: 22px 20px 36px;
+      transform: translateY(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    .modal-overlay.open .modal-sheet { transform: translateY(0); }
+    .modal-handle {
+      width: 40px; height: 4px; background: #e2e8f0; border-radius: 2px;
+      margin: 0 auto 18px;
+    }
+    .modal-title {
+      font-size: 15px; font-weight: 800; margin-bottom: 16px; color: var(--text);
+    }
+    .modal-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .sc-chip {
+      padding: 9px 16px; border-radius: 22px; border: 2px solid var(--border);
+      background: #fff; cursor: pointer; font-size: 13px; font-weight: 600;
+      color: var(--muted); transition: all .2s;
+    }
+    .sc-chip.active {
+      background: var(--cc, var(--primary));
+      border-color: transparent; color: #fff;
+      box-shadow: 0 3px 8px rgba(0,0,0,.2);
+    }
+    .modal-none-btn {
+      width: 100%; padding: 12px; border: 1.5px solid var(--border);
+      border-radius: 11px; background: #fff; cursor: pointer;
+      font-size: 13px; font-weight: 700; color: var(--muted);
+      transition: all .2s;
+    }
+    .modal-none-btn:active { background: var(--bg); }
   </style>
 </head>
 <body>
@@ -290,7 +355,7 @@
       <button class="subj-btn" id="sjS" onclick="setSubj('S')">S</button>
     </div>
 
-    <div class="collapsible" id="catSection" style="max-height:300px">
+    <div class="collapsible" id="catSection" style="max-height:400px">
       <div class="card-label">Categoria <span style="color:var(--expense)">*</span></div>
       <div class="cats">
         <button class="cat-btn" data-c="CAR"    onclick="setCat('CAR')">   <span class="ci">🚗</span>Car</button>
@@ -299,6 +364,12 @@
         <button class="cat-btn" data-c="HOME"   onclick="setCat('HOME')">  <span class="ci">🏠</span>Home</button>
         <button class="cat-btn" data-c="HEALTH" onclick="setCat('HEALTH')"><span class="ci">❤️</span>Health</button>
         <button class="cat-btn" data-c="EXTRAS" onclick="setCat('EXTRAS')"><span class="ci">⭐</span>Extras</button>
+      </div>
+
+      <!-- Sottocategorie (opzionali) -->
+      <div class="subcat-section" id="subCatSection">
+        <div class="card-label" style="margin-bottom:10px">Sottocategoria <span style="color:var(--muted);font-weight:500;text-transform:none;letter-spacing:0">(opzionale)</span></div>
+        <div class="subcat-chips" id="subCatChips"></div>
       </div>
     </div>
 
@@ -366,25 +437,32 @@
     </select>
   </div>
 
-  <!-- Summary -->
   <div class="sum-grid">
     <div class="sum-card"><div class="sum-lbl">Entrate</div><div class="sum-val inc" id="rInc">€0</div></div>
     <div class="sum-card"><div class="sum-lbl">Uscite</div><div class="sum-val exp" id="rExp">€0</div></div>
     <div class="sum-card"><div class="sum-lbl">Saldo</div><div class="sum-val" id="rBal">€0</div></div>
   </div>
 
-  <!-- Category breakdown -->
   <div class="card">
     <div class="card-label">Uscite per categoria</div>
     <div id="catBars"></div>
   </div>
 
-  <!-- Monthly breakdown -->
   <div class="card">
     <div class="card-label">Per mese</div>
     <div id="monthTbl"></div>
   </div>
 </section>
+
+<!-- ═══════════════ SUBCATEGORY MODAL ═══════════════ -->
+<div class="modal-overlay" id="scModal" onclick="closeScModal()">
+  <div class="modal-sheet" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="scModalTitle">Sottocategoria</div>
+    <div class="modal-chips" id="scModalChips"></div>
+    <button class="modal-none-btn" onclick="setScOnEntry(null)">✕ Rimuovi sottocategoria</button>
+  </div>
+</div>
 
 <!-- BOTTOM NAV -->
 <nav class="nav">
@@ -420,16 +498,28 @@ const CAT = {
   HEALTH: { icon: '❤️', color: '#e11d48' },
   EXTRAS: { icon: '⭐', color: '#ca8a04' },
 };
+
+const SUBCAT = {
+  CAR:    ['Fuel', 'Insurance', 'Repairs & Service'],
+  WORK:   ['Office', 'Taxes & Inarcassa', 'RC Professionale', 'Software', 'Personale/Fornitori'],
+  INVEST: ['Immobiliare', 'Altro'],
+  HOME:   ['Mutuo', 'Insurance', 'Bills', 'Food', 'Shopping'],
+  HEALTH: [],
+  EXTRAS: ['Shopping', 'Travel'],
+};
+
 const MESI = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
               'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 
 // ─────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────
-let db       = JSON.parse(localStorage.getItem('spesapp') || '[]');
-let curType  = 'uscita';
-let curSubj  = 'M';
-let curCat   = null;
+let db        = JSON.parse(localStorage.getItem('spesapp') || '[]');
+let curType   = 'uscita';
+let curSubj   = 'M';
+let curCat    = null;
+let curSubCat = null;
+let scEditId  = null;
 
 // ─────────────────────────────────────────
 // INIT
@@ -447,16 +537,16 @@ window.addEventListener('load', () => {
 // FORM CONTROLS
 // ─────────────────────────────────────────
 function setType(t) {
-  curType = t;
-  curCat  = null;
+  curType   = t;
+  curCat    = null;
+  curSubCat = null;
   document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('subCatSection').classList.remove('open');
 
   const isExp = t === 'uscita';
   document.getElementById('btnExp').className = 'type-btn' + (isExp ? ' active-expense' : '');
   document.getElementById('btnInc').className = 'type-btn' + (!isExp ? ' active-income'  : '');
-
-  const sec = document.getElementById('catSection');
-  sec.classList.toggle('hidden', !isExp);
+  document.getElementById('catSection').classList.toggle('hidden', !isExp);
 
   const btn = document.getElementById('addBtn');
   btn.textContent = isExp ? '+ AGGIUNGI USCITA' : '+ AGGIUNGI ENTRATA';
@@ -470,8 +560,33 @@ function setSubj(s) {
 }
 
 function setCat(c) {
-  curCat = (curCat === c) ? null : c;
+  curCat    = (curCat === c) ? null : c;
+  curSubCat = null;
   document.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b.dataset.c === curCat));
+  renderSubCatChips();
+}
+
+function setSubCat(s) {
+  curSubCat = (curSubCat === s) ? null : s;
+  renderSubCatChips();
+}
+
+function renderSubCatChips() {
+  const sec  = document.getElementById('subCatSection');
+  const wrap = document.getElementById('subCatChips');
+  const subs = curCat ? SUBCAT[curCat] : [];
+
+  if (!curCat || subs.length === 0) {
+    sec.classList.remove('open');
+    return;
+  }
+  sec.classList.add('open');
+  const color = CAT[curCat].color;
+  wrap.innerHTML = subs.map(s =>
+    `<button class="sub-chip ${curSubCat === s ? 'active' : ''}"
+             style="--cc:${color}"
+             onclick="setSubCat('${s}')">${s}</button>`
+  ).join('');
 }
 
 // ─────────────────────────────────────────
@@ -482,20 +597,25 @@ function addEntry() {
   const amount = parseFloat(document.getElementById('iAmt').value);
   const date   = document.getElementById('iDate').value;
 
-  if (!desc)              return toast('⚠️ Inserisci una descrizione');
-  if (!amount || amount <= 0) return toast('⚠️ Importo non valido');
-  if (!date)              return toast('⚠️ Seleziona una data');
+  if (!desc)                   return toast('⚠️ Inserisci una descrizione');
+  if (!amount || amount <= 0)  return toast('⚠️ Importo non valido');
+  if (!date)                   return toast('⚠️ Seleziona una data');
   if (curType === 'uscita' && !curCat) return toast('⚠️ Seleziona una categoria');
 
-  db.unshift({ id: Date.now(), date, subject: curSubj, type: curType,
-               category: curType === 'entrata' ? null : curCat,
-               description: desc, amount });
+  db.unshift({
+    id: Date.now(), date, subject: curSubj, type: curType,
+    category:    curType === 'entrata' ? null : curCat,
+    subcategory: curType === 'entrata' ? null : curSubCat,
+    description: desc, amount
+  });
   save();
 
   document.getElementById('iDesc').value = '';
   document.getElementById('iAmt').value  = '';
-  curCat = null;
+  curCat    = null;
+  curSubCat = null;
   document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('subCatSection').classList.remove('open');
 
   populateMonths();
   renderList();
@@ -535,12 +655,32 @@ function renderList() {
   }
 
   c.innerHTML = filtered.map(e => {
-    const cat    = e.category ? CAT[e.category] : null;
-    const bgClr  = cat ? cat.color : (e.type === 'entrata' ? '#16a34a' : '#94a3b8');
-    const icon   = cat ? cat.icon : (e.type === 'entrata' ? '↑' : '💳');
-    const sign   = e.type === 'entrata' ? '+' : '-';
-    const catBdg = cat ? `<span class="badge bdg-cat" style="background:${cat.color}">${e.category}</span>` : '';
-    const incBdg = e.type === 'entrata' ? `<span class="badge bdg-inc">Entrata</span>` : '';
+    const cat   = e.category ? CAT[e.category] : null;
+    const bgClr = cat ? cat.color : (e.type === 'entrata' ? '#16a34a' : '#94a3b8');
+    const icon  = cat ? cat.icon  : (e.type === 'entrata' ? '↑' : '💳');
+    const sign  = e.type === 'entrata' ? '+' : '-';
+
+    const catBdg = cat
+      ? `<span class="badge bdg-cat" style="background:${cat.color}">${e.category}</span>`
+      : '';
+    const incBdg = e.type === 'entrata'
+      ? `<span class="badge bdg-inc">Entrata</span>`
+      : '';
+
+    // Subcategory: show badge if set, show "+ sub" button if category has subcats
+    let subBdg = '';
+    if (cat && SUBCAT[e.category] && SUBCAT[e.category].length > 0) {
+      if (e.subcategory) {
+        subBdg = `<span class="badge bdg-sub bdg-cat" style="background:${cat.color}"
+                        onclick="openScModal(${e.id})" title="Modifica sottocategoria">
+                    ${e.subcategory} ✎
+                  </span>`;
+      } else {
+        subBdg = `<button class="bdg-sub-add" style="color:${cat.color};border-color:${cat.color}"
+                          onclick="openScModal(${e.id})">+ sottocategoria</button>`;
+      }
+    }
+
     return `
       <div class="exp-item">
         <div class="exp-ico" style="background:${bgClr}18">${icon}</div>
@@ -549,7 +689,7 @@ function renderList() {
           <div class="exp-meta">
             <span>${fmtDate(e.date)}</span>
             <span class="badge bdg-subj">${e.subject}</span>
-            ${catBdg}${incBdg}
+            ${catBdg}${incBdg}${subBdg}
           </div>
         </div>
         <div class="exp-right">
@@ -563,6 +703,39 @@ function renderList() {
         </div>
       </div>`;
   }).join('');
+}
+
+// ─────────────────────────────────────────
+// SUBCATEGORY MODAL
+// ─────────────────────────────────────────
+function openScModal(id) {
+  const entry = db.find(e => e.id === id);
+  if (!entry || !entry.category) return;
+  const subs = SUBCAT[entry.category];
+  if (!subs || subs.length === 0) return;
+
+  scEditId = id;
+  const cfg = CAT[entry.category];
+  document.getElementById('scModalTitle').textContent = `${cfg.icon} ${entry.category}`;
+  document.getElementById('scModalChips').innerHTML = subs.map(s =>
+    `<button class="sc-chip ${entry.subcategory === s ? 'active' : ''}"
+             style="--cc:${cfg.color}"
+             onclick="setScOnEntry('${s}')">${s}</button>`
+  ).join('');
+  document.getElementById('scModal').classList.add('open');
+}
+
+function setScOnEntry(sub) {
+  if (scEditId === null) return;
+  const entry = db.find(e => e.id === scEditId);
+  if (entry) { entry.subcategory = sub; save(); renderList(); }
+  closeScModal();
+  toast(sub ? `✅ ${sub}` : '✅ Sottocategoria rimossa');
+}
+
+function closeScModal() {
+  document.getElementById('scModal').classList.remove('open');
+  scEditId = null;
 }
 
 // ─────────────────────────────────────────
@@ -662,15 +835,15 @@ function exportExcel() {
     document.getElementById('fCat').value
   );
 
-  // Sheet 1: dettaglio
-  const rows = [['Data','Soggetto','Tipo','Categoria','Descrizione','Importo (€)']];
+  const rows = [['Data','Soggetto','Tipo','Categoria','Sottocategoria','Descrizione','Importo (€)']];
   filtered.forEach(e => rows.push([
     fmtDate(e.date), e.subject,
     e.type === 'entrata' ? 'Entrata' : 'Uscita',
-    e.category || '-', e.description, e.amount
+    e.category    || '-',
+    e.subcategory || '-',
+    e.description, e.amount
   ]));
 
-  // Sheet 2: riepilogo mensile
   const monthMap = {};
   filtered.forEach(e => {
     const ym = e.date.slice(0,7);
