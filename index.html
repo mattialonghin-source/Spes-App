@@ -420,9 +420,17 @@
     <div class="empty"><div class="ei">📭</div><p>Nessuna spesa registrata</p></div>
   </div>
 
-  <div class="btn-row">
+  <div class="btn-row" style="margin-bottom:8px">
     <button class="abtn abtn-xl"  onclick="exportExcel()">📊 Esporta Excel</button>
     <button class="abtn abtn-del" onclick="resetAll()">🗑 Reset</button>
+  </div>
+  <div class="card" style="padding:14px;margin-top:2px">
+    <div class="card-label">Backup automatico</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Stato: <strong id="backupStatusText">...</strong></div>
+    <div style="display:flex;gap:8px">
+      <button class="abtn abtn-xl" id="backupBtn" onclick="handleSetupBackup()" style="flex:1">📂 Configura file di backup</button>
+      <button class="abtn abtn-del" id="backupRemoveBtn" onclick="handleRemoveBackup()" style="display:none">✕ Rimuovi</button>
+    </div>
   </div>
 </section>
 
@@ -531,6 +539,8 @@ window.addEventListener('load', () => {
   renderReport();
   updateHdrBal();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+  requestPersistentStorage();
+  initBackupUI();
 });
 
 // ─────────────────────────────────────────
@@ -612,6 +622,7 @@ function addEntry() {
 
   document.getElementById('iDesc').value = '';
   document.getElementById('iAmt').value  = '';
+  document.getElementById('iDate').value = today();
   curCat    = null;
   curSubCat = null;
   document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
@@ -825,27 +836,17 @@ function renderReport() {
 // ─────────────────────────────────────────
 // EXPORT EXCEL
 // ─────────────────────────────────────────
-function exportExcel() {
-  if (!db.length) return toast('⚠️ Nessuna spesa da esportare');
-
-  const filtered = applyFilters(
-    document.getElementById('fMonth').value,
-    document.getElementById('fSubject').value,
-    document.getElementById('fType').value,
-    document.getElementById('fCat').value
-  );
-
+function buildWorkbook(data) {
   const rows = [['Data','Soggetto','Tipo','Categoria','Sottocategoria','Descrizione','Importo (€)']];
-  filtered.forEach(e => rows.push([
+  data.forEach(e => rows.push([
     fmtDate(e.date), e.subject,
     e.type === 'entrata' ? 'Entrata' : 'Uscita',
     e.category    || '-',
     e.subcategory || '-',
     e.description, e.amount
   ]));
-
   const monthMap = {};
-  filtered.forEach(e => {
+  data.forEach(e => {
     const ym = e.date.slice(0,7);
     if (!monthMap[ym]) monthMap[ym] = { inc: 0, exp: 0 };
     if (e.type === 'entrata') monthMap[ym].inc += e.amount;
@@ -857,11 +858,21 @@ function exportExcel() {
     const d = monthMap[ym];
     sumRows.push([`${MESI[+m-1]} ${y}`, d.inc, d.exp, d.inc - d.exp]);
   });
-
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows),    'Dettaglio');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), 'Per Mese');
-  XLSX.writeFile(wb, `spese_${today()}.xlsx`);
+  return wb;
+}
+
+function exportExcel() {
+  if (!db.length) return toast('⚠️ Nessuna spesa da esportare');
+  const filtered = applyFilters(
+    document.getElementById('fMonth').value,
+    document.getElementById('fSubject').value,
+    document.getElementById('fType').value,
+    document.getElementById('fCat').value
+  );
+  XLSX.writeFile(buildWorkbook(filtered), `spese_${today()}.xlsx`);
   toast('📊 Excel esportato!');
 }
 
@@ -933,7 +944,7 @@ function populateMonths() {
   });
 }
 
-function save()    { localStorage.setItem('spesapp', JSON.stringify(db)); }
+function save()    { localStorage.setItem('spesapp', JSON.stringify(db)); writeBackup(); }
 function today()   { return new Date().toISOString().split('T')[0]; }
 function fmtDate(d){ const [y,m,g]=d.split('-'); return `${g}/${m}/${y}`; }
 function eur(n)    { return '€' + n.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
@@ -946,6 +957,144 @@ function toast(msg) {
   el.classList.add('show');
   clearTimeout(_t);
   _t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// ─────────────────────────────────────────
+// PERSISTENT STORAGE
+// ─────────────────────────────────────────
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) return;
+  const already = await navigator.storage.persisted();
+  if (already) return;
+  const granted = await navigator.storage.persist();
+  if (granted) toast('🔒 Storage persistente attivato');
+}
+
+// ─────────────────────────────────────────
+// AUTO BACKUP (File System Access API)
+// ─────────────────────────────────────────
+let _idb = null;
+
+function _openIDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('spesapp-meta', 1);
+    r.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+    r.onsuccess = e => res(e.target.result);
+    r.onerror = rej;
+  });
+}
+async function _idbGet(key) {
+  if (!_idb) _idb = await _openIDB();
+  return new Promise(res => {
+    _idb.transaction('kv').objectStore('kv').get(key).onsuccess = e => res(e.target.result);
+  });
+}
+async function _idbSet(key, val) {
+  if (!_idb) _idb = await _openIDB();
+  return new Promise(res => {
+    const tx = _idb.transaction('kv', 'readwrite');
+    tx.objectStore('kv').put(val, key);
+    tx.oncomplete = res;
+  });
+}
+async function _idbDel(key) {
+  if (!_idb) _idb = await _openIDB();
+  return new Promise(res => {
+    const tx = _idb.transaction('kv', 'readwrite');
+    tx.objectStore('kv').delete(key);
+    tx.oncomplete = res;
+  });
+}
+
+async function _writeToHandle(handle) {
+  const out = XLSX.write(buildWorkbook(db), { bookType: 'xlsx', type: 'array' });
+  const w = await handle.createWritable();
+  await w.write(new Blob([out]));
+  await w.close();
+}
+
+// Returns: 'ok' | 'no_handle' | 'no_permission' | 'error'
+async function writeBackup() {
+  let handle;
+  try { handle = await _idbGet('backupHandle'); } catch { return 'no_handle'; }
+  if (!handle) return 'no_handle';
+  try {
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') return 'no_permission';
+    await _writeToHandle(handle);
+    return 'ok';
+  } catch { return 'error'; }
+}
+
+async function initBackupUI() {
+  const statusEl  = document.getElementById('backupStatusText');
+  const setupBtn  = document.getElementById('backupBtn');
+  const removeBtn = document.getElementById('backupRemoveBtn');
+  if (!statusEl) return;
+
+  if (!('showSaveFilePicker' in window)) {
+    statusEl.textContent = 'Non supportato su questo browser';
+    statusEl.style.color = 'var(--muted)';
+    setupBtn.disabled = true;
+    return;
+  }
+
+  const handle = await _idbGet('backupHandle');
+  if (handle) {
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      statusEl.textContent = '✓ Attivo — ' + (handle.name || 'file selezionato');
+      statusEl.style.color = 'var(--income)';
+      setupBtn.textContent = '📂 Cambia file';
+    } else {
+      statusEl.textContent = '⚠️ Permesso scaduto';
+      statusEl.style.color = '#ca8a04';
+      setupBtn.textContent = '🔓 Riattiva backup';
+    }
+    removeBtn.style.display = '';
+  } else {
+    statusEl.textContent = 'Non configurato';
+    statusEl.style.color = 'var(--muted)';
+    setupBtn.textContent = '📂 Configura file di backup';
+    removeBtn.style.display = 'none';
+  }
+}
+
+async function handleSetupBackup() {
+  const btn = document.getElementById('backupBtn');
+  btn.disabled = true;
+  try {
+    const handle = await _idbGet('backupHandle');
+    if (handle) {
+      // handle già salvato: prova a riattivare il permesso (richiede gesto utente)
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        await _writeToHandle(handle);
+        toast('✅ Backup riattivato!');
+        await initBackupUI();
+        return;
+      }
+      // permesso negato: scegli un nuovo file
+    }
+    const newHandle = await window.showSaveFilePicker({
+      suggestedName: 'spesapp-backup.xlsx',
+      types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+    });
+    await _idbSet('backupHandle', newHandle);
+    await _writeToHandle(newHandle);
+    toast('✅ Backup configurato: ' + newHandle.name);
+    await initBackupUI();
+  } catch (err) {
+    if (err.name !== 'AbortError') toast('⚠️ ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleRemoveBackup() {
+  await _idbDel('backupHandle');
+  toast('🗑 Backup automatico rimosso');
+  await initBackupUI();
 }
 </script>
 </body>
